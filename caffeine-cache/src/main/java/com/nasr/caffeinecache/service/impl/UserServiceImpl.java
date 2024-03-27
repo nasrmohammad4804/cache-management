@@ -9,18 +9,23 @@ import com.nasr.caffeinecache.service.UserService;
 import com.nasr.caffeinecache.util.CacheUtil;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
+import org.springframework.cache.caffeine.CaffeineCache;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static com.nasr.caffeinecache.config.UserCacheConfig.*;
 import static com.nasr.caffeinecache.config.UserCacheConfig.USER_ALL;
 import static com.nasr.caffeinecache.config.UserCacheConfig.USER_ID;
 
@@ -108,7 +113,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    @Cacheable(cacheNames = USER_ALL)
+    @Cacheable(cacheNames = USER_ALL, keyGenerator = "emptyKeyGenerator")
     public Iterable<UserResponseModel> getAll() {
         return repository.findAll()
                 .stream().map(user -> new UserResponseModel(user.getUsername(), user.getFirstName(), user.getLastName()))
@@ -116,7 +121,23 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public long count() {
-        return repository.count();
+    public long count() throws IllegalAccessException {
+
+        Cache cache = cacheManager.getCache(USER_ALL);
+
+        if (cache instanceof CaffeineCache caffeineCache) {
+            Object value = caffeineCache.getNativeCache()
+                    .asMap()
+                    .get(USER_ALL_CACHE_KEY_NAME);
+
+            AtomicReference<Long> result = new AtomicReference<>();
+
+            Optional.ofNullable(value)
+                    .ifPresentOrElse((val) -> result.set((long) ((List<?>) val).size()),
+                            () -> result.set(repository.count()));
+
+            return result.get();
+        }
+        throw new IllegalAccessException("caffeine cache provider dont supported!");
     }
 }

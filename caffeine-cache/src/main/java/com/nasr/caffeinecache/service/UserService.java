@@ -20,6 +20,6 @@ public interface UserService {
 
     Iterable<UserResponseModel> getAll();
 
-    long count();
+    long count() throws IllegalAccessException;
 
 }

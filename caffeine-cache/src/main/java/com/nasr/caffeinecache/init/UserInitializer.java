@@ -15,7 +15,7 @@ public class UserInitializer {
     private UserService userService;
 
     @PostConstruct
-    public void initUsers(){
+    public void initUsers() throws IllegalAccessException {
         if (userService.count()==0)
             initialize();
     }
